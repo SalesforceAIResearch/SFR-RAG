@@ -1,0 +1,439 @@
+---
+id: evaluation-datasets-synthetic-data
+title: Synthesizer
+sidebar_label: Synthesizer
+---
+
+## Quick Summary
+
+`deepeval` offers a data `Synthesizer` for anyone to easily generate evaluation datasets from scratch. The `Synthesizer` class is a synthetic data generator that first uses an LLM to generate a series of `input`s, before evolving each `input` to make them more complex and realistic. These evolved inputs are then used to create a **list of synthetic `Golden`s**, which makes up your synthetic `EvaluationDataset`.
+
+:::tip Did You Know?
+`deepeval`'s `Synthesizer` uses the data evolution method to generate large volumes of data across various complexity levels to make synthetic data more realistic. This method was originally introduced by the developers of [Evol-Instruct and WizardML.](https://arxiv.org/abs/2304.12244)
+
+For those interested, here is a [great article on how `deepeval`'s synthesizer was built.](https://www.confident-ai.com/blog/the-definitive-guide-to-synthetic-data-generation-using-llms)
+:::
+
+## Creating An Synthesizer
+
+`deepeval`'s `Synthesizer` can be used as a standalone or within an `EvaluationDataset`. To begin, create a `Synthesizer`:
+
+```python
+from deepeval.synthesizer import Synthesizer
+
+synthesizer = Synthesizer()
+```
+
+There are two optional parameters when creating a `Synthesizer`:
+
+- [Optional] `model`: a string specifying which of OpenAI's GPT models to use, **OR** [any custom LLM model](metrics-introduction#using-a-custom-llm) of type `DeepEvalBaseLLM`. Defaulted to `gpt-4o`.
+- [Optional] `multithreading`: a boolean which when set to `True`, enables **concurrent generation of goldens**. Defaulted to `True`.
+- [Optional] `embedder`: a string specifying which of OpenAI's embedding models to use, **OR** [any custom embedding model](#using-a-custom-embedding-model) of type `DeepEvalBaseEmbeddingModel`. Defaulted to 'text-embedding-3-small'.
+
+:::info
+As you'll learn later, an embedding model is only used when using the `generate_goldens_from_docs()` method, so don't worry about the `embedder` parameter too much unless you're looking to use your own embedding model.
+:::
+
+## Using Synthesizer As A Standalone
+
+There are 4 approaches a `deepeval`'s `Synthesizer` can generate synthetic `Golden`s:
+
+1. Generating synthetic `Golden`s using **context extracted from documents.**
+2. Generating synthetic `Golden`s from a **list of provided context.**
+3. Generating synthetic adversarial `Golden`s for red teaming.
+4. Generating synthetic `Golden`s from **scratch**
+
+### 1. Generating From Documents
+
+To generate synthetic `Golden`s from documents, simply provide a list of document paths:
+
+:::note
+The `generate_goldens_from_docs` method employs a token-based text splitter to manage document chunking, meaning the `chunk_size` and `chunk_overlap` parameters do not guarantee exact context sizes. This approach is designed to ensure **meaningful and coherent context extraction**, but might lead to variations in the expected size of each `context`.
+:::
+
+```python
+from deepeval.synthesizer import Synthesizer
+
+synthesizer = Synthesizer()
+synthesizer.generate_goldens_from_docs(
+    document_paths=['example.txt', 'example.docx', 'example.pdf'],
+    max_goldens_per_document=2
+)
+```
+
+There are one mandatory and seven optional parameters when using the `generate_goldens_from_docs` method:
+
+- `document_paths`: a list strings, representing the path to the documents from which contexts will be extracted from. Supported documents types include: `.txt`, `.docx`, and `.pdf`.
+- [Optional] `include_expected_output`: a boolean which when set to `True`, will additionally generate an `expected_output` for each synthetic `Golden`. Defaulted to `False`.
+- [Optional] `max_goldens_per_document`: the maximum number of goldens to be generated per document. Defaulted to 5.
+- [Optional] `chunk_size`: specifies the size of text chunks (in characters) to be considered for context extraction within each document. Defaulted to 1024.
+- [Optional] `chunk_overlap`: an int that determines the overlap size between consecutive text chunks during context extraction. Defaulted to 0.
+- [Optional] `num_evolutions`: the number of evolution steps to apply to each generated input. This parameter controls the **complexity and diversity** of the generated dataset by iteratively refining and evolving the initial inputs. Defaulted to 1.
+- [Optional] `evolutions`: a list of `Evolution`s, specifying the type of data evolution used. Defaulted to all `Evolution`s.
+
+:::info
+`Evolution` is an `ENUM` that specifies the different data evolution techniques you wish to employee to make synthetic `Golden`s more realistic.
+
+```python
+from deepeval.synthesizer import Evolution
+
+available_evolutions = [
+    Evolution.REASONING,
+    Evolution.MULTICONTEXT,
+    Evolution.CONCRETIZING,
+    Evolution.CONSTRAINED,
+    Evolution.COMPARATIVE,
+    Evolution.HYPOTHETICAL,
+    Evolution.IN_BREADTH
+]
+```
+
+For those interested in what these evolutions mean, you can [read this article here.](https://www.confident-ai.com/blog/the-definitive-guide-to-synthetic-data-generation-using-llms)
+:::
+
+### 2. Generating From Provided Contexts
+
+`deepeval` also allows you to generate synthetic `Goldens` from a manually provided a list of context instead of directly generating from your documents.
+
+:::tip
+This is especially helpful if you already have an embedded knowledge base. For example, if you already have documents parsed and stored in an existing vector database, you may consider handling the logic to retrieve text chunks yourself.
+:::
+
+```python
+from deepeval.synthesizer import Synthesizer
+
+synthesizer = Synthesizer()
+synthesizer.generate_goldens(
+    # Provide a list of context for synthetic data generation
+    contexts=[
+        ["The Earth revolves around the Sun.", "Planets are celestial bodies."],
+        ["Water freezes at 0 degrees Celsius.", "The chemical formula for water is H2O."],
+    ]
+)
+```
+
+There are one mandatory and five optional parameters when using the `generate_goldens` method:
+
+- `contexts`: a list of context, where each context is itself a list of strings, ideally sharing a common theme or subject area.
+- [Optional] `include_expected_output`: a boolean which when set to `True`, will additionally generate an `expected_output` for each synthetic `Golden`. Defaulted to `False`.
+- [Optional] `max_goldens_per_context`: the maximum number of goldens to be generated per context. Defaulted to 2.
+- [Optional] `num_evolutions`: the number of evolution steps to apply to each generated input. This parameter controls the **complexity and diversity** of the generated dataset by iteratively refining and evolving the initial inputs. Defaulted to 1.
+- [Optional] `evolutions`: a list of `Evolution`s, specifying the type of data evolution used. Defaulted to all `Evolution`s.
+
+:::caution
+While the previous methods first use an LLM to generate a series of inputs based on the provided context before evolving them, `generate_goldens_from_inputs` simply evolves the provided list of inputs into more complex and diverse `Golden`s. It's also important to note that this method will only populate the input field of each generated `Golden`.
+:::
+
+### 3. Generating Adversarial `Goldens` for Red Teaming
+
+`deepeval` also allows you to generate adversarial `Goldens` to [red team LLM applications](https://www.confident-ai.com/blog/red-teaming-llms-a-step-by-step-guide). You can also optionally provide a list of contexts to keep each generated synthetic `Golden` grounded in your data.
+
+:::tip
+This is especially helpful for assessing your LLM application's **risks and vulnerabilities**.
+:::
+
+```python
+from deepeval.synthesizer import Synthesizer
+
+synthesizer = Synthesizer()
+synthesizer.generate_red_teaming_goldens(
+    # Optionally provide a list of context to keep adversarial goldens grounded
+    contexts=[
+        ["The Earth revolves around the Sun.", "Planets are celestial bodies."],
+        ["Water freezes at 0 degrees Celsius.", "The chemical formula for water is H2O."],
+    ]
+)
+```
+
+There are six optional parameters when using the `generate_red_teaming_goldens` method:
+
+- [Optional] `contexts`: a list of context, where each context is itself a list of strings, ideally sharing a common theme or subject area. When `contexts` is supplied, the `Synthesizer` generates adversarial goldens **based on information presented in contexts**. If not, they are generated from scratch.
+- [Optional] `include_expected_output`: a boolean which when set to `True`, will additionally generate an `expected_output` for each synthetic `Golden`. Defaulted to `False`.
+- [Optional] `max_goldens`: the maximum number of golden to be generated if `contexts` isn't supplied. If `contexts` is supplied, `max_goldens` will be confined to the length of `contexts`. Defaulted to 2.
+- [Optional] `num_evolutions`: the number of evolution steps to apply to each generated `Golden`. Defaulted to 1.
+- [Optional] `attacks`: a list of `RTAdversarialAttack`s, specifying the types of adversarial attacks you want generated for your synthetic `Golden`s. Defaulted to all `RTAdversarialAttack`s.
+- [Optional] `vulnerabilities`: a list of `RTVulnerability`s, representing the undesirable vulnerability you are trying to elicit. Defaulted to all `RTVulnerability`s.
+
+:::info
+`RTAdversarialAttack` is an `ENUM` that specifies the different **types of red teaming** attacks (prompt injection, prompt probing, etc.) you wish to include in your final dataset, while the `RTVulnerability` `ENUM` specifies the type of vulnerability and risk you are trying to assess your LLM application on (hallucination, bias, etc.):
+
+```python
+from deepeval.synthesizer import RTAdversarialAttack, RTVulnerability
+
+available_red_teaming_attacks = [
+    RTAdversarialAttack.PROMPT_INJECTION,
+    RTAdversarialAttack.PROMPT_PROBING,
+    RTAdversarialAttack.GRAY_BOX_ATTACK,
+    RTAdversarialAttack.JAIL_BREAKING
+]
+
+available_red_teaming_vulnerabilities = [
+    RTVulnerability.HALLUCINATION,
+    RTVulnerability.OFFENSIVE,
+    RTVulnerability.BIAS,
+    RTVulnerability.DATA_LEAKAGE,
+    RTVulnerability.UNFORMATTED
+]
+```
+
+[Click here to learn more](https://www.confident-ai.com/blog/red-teaming-llms-a-step-by-step-guide) about the different types of adversarial attacks and vulnerabilities used for red teaming.
+:::
+
+### 4. Generating From Scratch
+
+If you do not have a list of example prompts, or wish to solely rely on an LLM generation for synthesis, you can also generate synthetic `Golden`s simply by specifying the subject, task, and output format you wish your prompts to follow.
+
+:::tip
+Generating goldens from scratch is especially helpful when you wish to **evaluate your LLM on a specific task**, such as red-teaming or text-to-SQL use cases!
+:::
+
+```python
+from deepeval.synthesizer import Synthesizer
+
+synthesizer = Synthesizer()
+synthesizer.generate_goldens_from_scratch(
+    subject="Harmful and toxic prompts, with emphasis on dark humor",
+    task="Red-team LLMs",
+    output_format="string",
+    num_initial_goldens=25,
+    num_evolutions=20
+)
+```
+
+This method is a **2-step function** that first generates a list of prompts about a given subject for a certain task and in a certain output format, before using the generated list of prompts to generate more prompts through data evolution.
+
+:::info```python
+from deepeval.synthesizer import Synthesizer
+
+synthesizer = Synthesizer()
+synthesizer.generate_goldens_from_scratch(
+subject="Harmful and toxic prompts, with emphasis on dark humor",
+task="Red-team LLMs",
+output_format="string",
+num_initial_goldens=25,
+num_evolutions=20
+)
+
+````
+
+This method is a **2-step function** that first generates a list of prompts about a given subject for a certain task and in a certain output format, before using the generated list of prompts to generate more prompts through data evolution.
+
+:::info
+The subject, task, and output format parameters are all strings that are inserted into a predefined prompt template, meaning these parameters are **flexible and will need to be iterated on** for optimal results.
+:::
+
+There are four mandatory and three optional parameters when using the `generate_goldens_from_docs` method:
+
+- `subject`: a string, specifying the subject and nature of your generated `Golden`s
+- `task`: a string, representing the purpose of these evaluation `Golden`s
+- `output_format`: a string, representing the expected output format. This is not equivalent to python `type`s but simply gives you more control over the structure of your synthetic data.
+- `num_initial_goldens`: the number of goldens generated before consequent evolutions
+- [Optional] `num_evolutions`: the number of evolution steps to apply to each generated prompt. This parameter controls the **complexity and diversity** of the generated dataset by iteratively refining and evolving the initial inputs. Defaulted to 1.
+- [Optional] `evolution_types`: a list of `PromptEvolution`, specifying methods used during data evolution. Defaulted to all `PromptEvolution`s.
+The subject, task, and output format parameters are all strings that are inserted into a predefined prompt template, meaning these parameters are **flexible and will need to be iterated on** for optimal results.
+
+
+:::info
+`PromptEvolution` is an `ENUM` that specifies the different data evolution techniques you wish to employee to make synthetic contextless `Golden`s more realistic.
+
+```python
+from deepeval.synthesizer import PromptEvolution
+
+available_evolutions = [
+    PromptEvolution.REASONING,
+    PromptEvolution.CONCRETIZING,
+    PromptEvolution.CONSTRAINED,
+    PromptEvolution.COMPARATIVE,
+    PromptEvolution.HYPOTHETICAL,
+    PromptEvolution.IN_BREADTH
+]
+```
+
+For those interested in what these evolutions mean, you can [read this article here.](https://www.confident-ai.com/blog/the-definitive-guide-to-synthetic-data-generation-using-llms)
+:::
+
+## Saving Generated Goldens
+
+To not accidentally lose any generated synthetic `Golden`, you can use the `save_as()` method:
+
+```python
+synthesizer.save_as(
+    file_type='json', # or 'csv'
+    directory="./synthetic_data"
+)
+````
+
+## Using Synthesizer Within An Evaluation Dataset
+
+An `EvaluationDataset` also has the `generate_goldens_from_docs` and `generate_goldens` methods, which under the hood is powered by the `Synthesizer`'s implementation.
+
+:::info
+Except for an additional option to accept a custom `Synthesizer` as argument, the `generate_goldens_from_docs` and `generate_goldens` methods in an `EvaluationDataset` accepts the exact same arguments as those on a `Synthesizer`.
+:::
+
+You can optionally specify a custom `Synthesizer` when calling `generate_goldens_from_docs` and `generate_goldens` through the `EvaluationDataset` interface if for example, you wish to use a custom LLM to generate synthetic data. If no `Synthesizer` is provided, the default `Synthesizer` configuration is used.
+
+To begin, optionally create a custom `Synthesizer`:
+
+```python
+from deepeval.synthesizer import Synthesizer
+
+synthesizer = Synthesizer(model="gpt-3.5-turbo")
+```
+
+Then, provide it as an argument to `generate_goldens_from_docs`:
+
+```python
+from deepeval.dataset import EvaluationDataset
+...
+
+dataset = EvaluationDataset()
+dataset.generate_goldens_from_docs(
+    synthesizer=synthesizer,
+    document_paths=['example.pdf'],
+)
+```
+
+Or, to `generate_goldens`:
+
+```python
+...
+
+dataset.generate_goldens(
+    synthesizer=synthesizer,
+    contexts=[
+        ["The Earth revolves around the Sun.", "Planets are celestial bodies."],
+        ["Water freezes at 0 degrees Celsius.", "The chemical formula for water is H2O."],
+    ]
+)
+```
+
+Or, to `generate_red_teaming_goldens`:
+
+```python
+...
+
+dataset.generate_red_teaming_goldens(
+    synthesizer=synthesizer,
+    contexts=[
+        ["The Earth revolves around the Sun.", "Planets are celestial bodies."],
+        ["Water freezes at 0 degrees Celsius.", "The chemical formula for water is H2O."],
+    ]
+)
+```
+
+Lastly, don't forget to call `save_as()` to perserve any generated synthetic `Golden`:
+
+```python
+saved_path = dataset.save_as(
+    file_type='json',  # or 'csv'
+    directory="./synthetic_data"
+)
+```
+
+:::tip
+The `save_as()` method returns a string to the path the dataset was saved to, just in case you need to use it in code later on.
+:::
+
+## Using a Custom Embedding Model
+
+:::info
+Under the hood, only the `generate_goldens_from_docs()` method uses an embedding model. This is because in order to generate goldens from documents, the `Synthesizer` uses cosine similarity to generate the relevant context needed for data synthesization.
+:::
+
+### Using Azure OpenAI
+
+You can use Azure's OpenAI embedding models by running the following commands in the CLI:
+
+```console
+deepeval set-azure-openai --openai-endpoint=<endpoint> \
+    --openai-api-key=<api_key> \
+    --deployment-name=<deployment_name> \
+    --openai-api-version=<openai_api_version> \
+    --model-version=<model_version>
+```
+
+Then, run this to set the Azure OpenAI embedder:
+
+```console
+deepeval set-azure-openai-embedding --embedding_deployment-name=<embedding_deployment_name>
+```
+
+:::tip Did You Know?
+The first command configures `deepeval` to use Azure OpenAI LLM globally, while the second command configures `deepeval` to use Azure OpenAI's embedding models globally.
+:::
+
+### Using Any Custom Model
+
+Alternatively, you can also create a custom embedding model in code by inheriting the base `DeepEvalBaseEmbeddingModel` class. Here is an example of using the same custom Azure OpenAI embedding model but created in code instead using langchain's `langchain_openai` module:
+
+```python
+from typing import List, Optional
+from langchain_openai import AzureOpenAIEmbeddings
+from deepeval.models import DeepEvalBaseEmbeddingModel
+
+class CustomEmbeddingModel(DeepEvalBaseEmbeddingModel):
+    def __init__(self):
+        pass
+
+    def load_model(self):
+        return AzureOpenAIEmbeddings(
+            openai_api_version="...",
+            azure_deployment="...",
+            azure_endpoint="...",
+            openai_api_key="...",
+        )
+
+    def embed_text(self, text: str) -> List[float]:
+        embedding_model = self.load_model()
+        return embedding_model.embed_query(text)
+
+    def embed_texts(self, texts: List[str]) -> List[List[float]]:
+        embedding_model = self.load_model()
+        return embedding_model.embed_documents(texts)
+
+    async def a_embed_text(self, text: str) -> List[float]:
+        embedding_model = self.load_model()
+        return await embedding_model.aembed_query(text)
+
+    async def a_embed_texts(self, texts: List[str]) -> List[List[float]]:
+        embedding_model = self.load_model()
+        return await embedding_model.aembed_documents(texts)
+
+    def get_model_name(self):
+        "Custom Azure Embedding Model"
+```
+
+When creating a custom embedding model, you should **ALWAYS**:
+
+- inherit `DeepEvalBaseEmbeddingModel`.
+- implement the `get_model_name()` method, which simply returns a string representing your custom model name.
+- implement the `load_model()` method, which will be responsible for returning the model object instance.
+- implement the `embed_text()` method with **one and only one** parameter of type `str` as the text to be embedded, and returns a vector of type `List[float]`. We called `embedding_model.embed_query(prompt)` to access the embedded text in this particular example, but this could be different depending on the implementation of your custom model object.
+- implement the `embed_texts()` method with **one and only one** parameter of type `List[str]` as the list of strings text to be embedded, and return a list of vectors of type `List[List[float]]`.
+- implement the asynchronous `a_embed_text()` and `a_embed_texts()` method, with the same function signature as their respective synchronous versions. Since this is an asynchronous method, remember to use `async/await`.
+
+:::note
+If an asynchronous version of your embedding model does not exist, simply reuse the synchronous implementation:
+
+```python
+class CustomEmbeddingModel(DeepEvalBaseEmbeddingModel):
+    ...
+    async def a_embed_text(self, text: str) -> List[float]:
+        return self.embed_text(text)
+```
+
+:::
+
+Lastly, provide the custom embedding model through the `embedder` parameter when creating a `Synthesizer`:
+
+```python
+from deepeval.synthesizer import Synthesizer
+...
+
+synthesizer = Synthesizer(embedder=CustomEmbeddingModel())
+```
+
+:::tip
+If you run into **invalid JSON errors** using custom models, you may want to consult [this guide](guides-using-custom-llms) on using custom LLMs for evaluation, as synthetic data generation also supports pydantic confinement for custom models.
+:::
