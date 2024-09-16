@@ -100,7 +100,8 @@ def main(cfg):
     
     parser = argparse.ArgumentParser()
     cache_dir = cfg.paths.cache_dir
-    eval_dataset = load_dataset("xanhho/2WikiMultihopQA", split="dev", cache_dir=cache_dir)
+    # eval_dataset = load_dataset("xanhho/2WikiMultihopQA", split="dev", cache_dir=cache_dir)
+    eval_dataset = load_dataset("ContextualBench/ContextualBench", "2WikiMultihopQA", split="validation", cache_dir=cache_dir)
     
     system_prompt = f"You are an expert in retrieval QA. Answer in fewest words possible. No context, No explanation, and No elaboration. It is crucial to provide the exact answer only."
     all_prompts = create_prompts(eval_dataset, system_prompt)
