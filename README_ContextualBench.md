@@ -5,6 +5,9 @@
 
 ContextualBench is a powerful evaluation framework designed to assess the performance of Large Language Models (LLMs) on contextual datasets. It provides a flexible pipeline for evaluating various LLM families across different tasks, with a focus on handling large context inputs.
 
+> Each individual evaluation dataset in ContextualBench is licensed separately and must be adhered by a user.
+
+
 ## Features
 
 Dynamic Retrieval Support: Efficiently handles large context inputs, allowing for comprehensive evaluation of LLMs' contextual understanding capabilities.
