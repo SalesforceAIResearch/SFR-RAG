@@ -11,7 +11,7 @@ This code is licensed under CC-BY-NC 4.0. This is a research only project.
 
 > Gemma is provided under and subject to the Gemma Terms of Use found at ai.google.dev/gemma/terms.
 
-> Each individual evaluation dataset in ContextualBench is licensed separately and must be adhered by a user.
+> Users need to make their own assessment regarding any obligations or responsibilities under the corresponding licenses or terms and conditions pertaining to the original datasets and data.
 
 # Acknowledgement
 We want to acknowledge the work which have made contributions to our paper and the agent research community! If you find our work useful, please consider to cite

@@ -5,7 +5,7 @@
 
 ContextualBench is a powerful evaluation framework designed to assess the performance of Large Language Models (LLMs) on contextual datasets. It provides a flexible pipeline for evaluating various LLM families across different tasks, with a focus on handling large context inputs.
 
-> Each individual evaluation dataset in ContextualBench is licensed separately and must be adhered by a user.
+> Users need to make their own assessment regarding any obligations or responsibilities under the corresponding licenses or terms and conditions pertaining to the original datasets and data.
 
 
 ## Features
@@ -48,12 +48,10 @@ Once the data is ready, make sure you have all the required libraries installed 
 Simply execute the command specified in the respective dataset folder to evaluate.
 
 #### Method 2
-You can also use the `run.py` file to run any dataset (except PopQA, use the command mentioned in the PopQA directory)
-Run the command
+You can also use the `run.py` file to run any dataset. Run the command
 ```bash
 python run.py [dataset_name]
 ```
-Here [dataset_name] can be replaced by 2wikimultihopqa, hotpotqa, musique, naturalquestions, triviaqa, truthfulqa.
 
 
 ## Leaderboard
