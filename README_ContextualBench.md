@@ -52,10 +52,10 @@ You can also use the `run.py` file to run any dataset. Run the command
 ```bash
 python run.py [dataset_name]
 ```
-
+https://huggingface.co/spaces/Salesforce/ContextualBench-Leaderboard
 
 ## Leaderboard
-We manage a leaderboard that ranks large language models (LLMs) based on their performance on ContextualBench Tasks, which can be found at the [ContextualBench Leaderboard](https://huggingface.co/spaces/Salesforce/RAG-Leaderboard). To have your model evaluated and included on the leaderboard, please send your model's predictions (outputs) for all datasets to [xnguyen@salesforce.com](xnguyen@salesforce.com).
+We manage a leaderboard that ranks large language models (LLMs) based on their performance on ContextualBench Tasks, which can be found at the [ContextualBench Leaderboard](https://huggingface.co/spaces/Salesforce/ContextualBench-Leaderboard). To have your model evaluated and included on the leaderboard, please send your model's predictions (outputs) for all datasets to [xnguyen@salesforce.com](xnguyen@salesforce.com).
 
 ## Cite
 If you use this work, please cite the following -
